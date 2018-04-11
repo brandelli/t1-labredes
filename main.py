@@ -2,7 +2,7 @@ from sender import Sender
 
 
 def main():
-    send = Sender('q','a','a')
+    send = Sender('test.txt')
 
 
 if __name__ == '__main__': main()
