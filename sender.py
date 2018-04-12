@@ -5,9 +5,18 @@ import os
 
 
 class Sender:
+    #0x0800 ipv4
+    #0x86dd ipv6
+    #17 UDP
+    #6  TCP
     #def __init__(self, src, dest, data):
-    def __init__(self, fileName):
+    def __init__(self, fileName, etherType, ipProtocolType, destMac, srcMac):
         self._file = self.prepareFile(fileName, 1480)
+        self._etherType = self.defineEtherType(etherType)
+        self._ipProtocolType = self.defineIpProtocol(ipProtocolType)
+        self._destMac = destMac
+        self._srcMac = srcMac
+        self._etherFrame = self.ethframe()
         self.create()
         #self._src = src
         #self._dest = dest
@@ -36,10 +45,6 @@ class Sender:
         addr = net.NetAddr(mac=mac, ip=ip, port=port)
         return addr
 
-    @property
-    def packet(self):
-        return self._packet
-
     def prepareFile(self, strFileName, maxFileSize):
         file = open(strFileName, 'r+b')
         fileSize = os.stat(strFileName).st_size
@@ -53,14 +58,26 @@ class Sender:
         file.close()
         return arrFile
 
+
+    def defineEtherType(self, etherType):
+        if(etherType == 'IPV4'):
+            return 0x0800
+        return 0x86DD
+
+
+    def defineIpProtocol(self, ipProtocolType):
+        if(ipProtocolType == 'UDP'):
+            return 17
+        return 6
+
     def create(self):
-        for file in self._file:
-            print file
-            print '\n testando --------------------------------'
-        #udpf = self._udpframe()
-        #ipf = self._ipframe(len(udpf)+len(self._data))
-        #ethf = self._ethframe()
-        #return ethf + ipf + udpf + self._data
+        #for file in self._file:
+        #    print file
+
+        print self._etherType
+        print self._ipProtocolType
+        print self._etherFrame
+
 
     def udpframe(self):
         return struct.pack('HHHH',
@@ -83,7 +100,10 @@ class Sender:
             socket.inet_aton(self._dest.ip)) # dest ip
 
     def ethframe(self):
+        print self._destMac.encode()
+        print self._srcMac.encode()
         return struct.pack('6s6s2B',
-            binascii.unhexlify(self._dest.mac), # dest
-            binascii.unhexlify(self._src.mac),  # src
-            0x08, 0)        # ethtype
+            self._destMac,   # dest
+            self._srcMac,    # src
+            self._etherType, # etherType
+            0)               # data
