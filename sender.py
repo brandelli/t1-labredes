@@ -7,7 +7,7 @@ import os
 class Sender:
     #def __init__(self, src, dest, data):
     def __init__(self, fileName):
-        self._file = self.prepareFile(fileName, 1480)
+        self._file = self.prepareFile(fileName, 1460)
         self.create()
         #self._src = src
         #self._dest = dest
