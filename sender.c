@@ -1,10 +1,3 @@
-/*
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- */
-
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <stdio.h>
@@ -25,17 +18,36 @@
 #define MY_DEST_MAC4	0x00
 #define MY_DEST_MAC5	0x00
 
-#define DEFAULT_IF	"eth0"
-#define BUF_SIZ		1024
+#define BUF_SIZ		1500
 
-unsigned short csum(unsigned short *buf, int nwords)
+unsigned short in_cksum(unsigned short *addr,int len)
 {
-    unsigned long sum;
-    for(sum=0; nwords>0; nwords--)
-        sum += *buf++;
-    sum = (sum >> 16) + (sum &0xffff);
-    sum += (sum >> 16);
-    return (unsigned short)(~sum);
+        register int sum = 0;
+        u_short answer = 0;
+        register u_short *w = addr;
+        register int nleft = len;
+
+        /*
+         * Our algorithm is simple, using a 32 bit accumulator (sum), we add
+         * sequential 16 bit words to it, and at the end, fold back all the
+         * carry bits from the top 16 bits into the lower 16 bits.
+         */
+        while (nleft > 1)  {
+                sum += *w++;
+                nleft -= 2;
+        }
+
+        /* mop up an odd byte, if necessary */
+        if (nleft == 1) {
+                *(u_char *)(&answer) = *(u_char *)w ;
+                sum += answer;
+        }
+
+        /* add back carry outs from top 16 bits to low 16 bits */
+        sum = (sum >> 16) + (sum & 0xffff);     /* add hi 16 to low 16 */
+        sum += (sum >> 16);                     /* add carry */
+        answer = ~sum;                          /* truncate to 16 bits */
+        return(answer);
 }
 
 int main(int argc, char *argv[])
@@ -49,12 +61,15 @@ int main(int argc, char *argv[])
 	struct iphdr *iph = (struct iphdr *) (sendbuf + sizeof(struct ether_header));
 	struct sockaddr_ll socket_address;
 	char ifName[IFNAMSIZ];
-	
-	/* Get interface name */
-	if (argc > 1)
-		strcpy(ifName, argv[1]);
-	else
-		strcpy(ifName, DEFAULT_IF);
+	char ifTeste[IFNAMSIZ];
+	char *aux;
+	int udpMode;
+	//a4:1f:72:f5:90:c2 canto 
+	//a4:1f:72:f5:90:52	menos canto
+	udpMode = atoi(argv[2]);
+	strcpy(ifTeste, argv[0]);
+	printf("cachorro %d \n", udpMode);
+	strcpy(ifName, argv[1]);
 
 	/* Open RAW socket to send on */
 	if ((sockfd = socket(AF_PACKET, SOCK_RAW, IPPROTO_RAW)) == -1) {
@@ -87,12 +102,12 @@ int main(int argc, char *argv[])
 	eh->ether_shost[3] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[3];
 	eh->ether_shost[4] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[4];
 	eh->ether_shost[5] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5];
-	eh->ether_dhost[0] = MY_DEST_MAC0;
-	eh->ether_dhost[1] = MY_DEST_MAC1;
-	eh->ether_dhost[2] = MY_DEST_MAC2;
-	eh->ether_dhost[3] = MY_DEST_MAC3;
-	eh->ether_dhost[4] = MY_DEST_MAC4;
-	eh->ether_dhost[5] = MY_DEST_MAC5;
+	eh->ether_dhost[0] = eh->ether_shost[0];
+	eh->ether_dhost[1] = eh->ether_shost[1];
+	eh->ether_dhost[2] = eh->ether_shost[2];
+	eh->ether_dhost[3] = eh->ether_shost[3];
+	eh->ether_dhost[4] = eh->ether_shost[4];
+	eh->ether_dhost[5] = eh->ether_shost[5];
 	/* Ethertype field */
 	eh->ether_type = htons(ETH_P_IP);
 	tx_len += sizeof(struct ether_header);
@@ -103,35 +118,40 @@ int main(int argc, char *argv[])
 	iph->tos = 16; // Low delay
 	iph->id = htons(54321);
 	iph->ttl = 255; // hops
-	iph->protocol = 17; // UDP
-	iph->frag_off |= htons(IP_MF);
-	/* Source IP address, can be spoofed */
+	iph->protocol = udpMode ? 17 : 6; // UDP
+	//iph->frag_off |= htons(IP_MF);
 	iph->saddr = inet_addr(inet_ntoa(((struct sockaddr_in *)&if_ip.ifr_addr)->sin_addr));
 	// iph->saddr = inet_addr("192.168.0.112");
-	/* Destination IP address */
-	iph->daddr = inet_addr("192.168.0.111");
+	iph->daddr = inet_addr("127.0.0.1");
+	iph->check = 0;
 	tx_len += sizeof(struct iphdr);
 
-	struct udphdr *udph = (struct udphdr *) (sendbuf + sizeof(struct iphdr) + sizeof(struct ether_header));
-	/* UDP Header */
-	udph->source = htons(3423);
-	udph->dest = htons(5342);
-	udph->check = 0; // skip
-	tx_len += sizeof(struct udphdr);
-	/* Packet data */
+	if(udpMode){
+		struct udphdr *udph = (struct udphdr *) (sendbuf + sizeof(struct iphdr) + sizeof(struct ether_header));
+		/* UDP Header */
+		udph->source = htons(3423);
+		udph->dest = htons(5342);
+		udph->check = 0; // skip
 
-	sendbuf[tx_len++] = 0x40;
-	sendbuf[tx_len++] = 0xad;
-	sendbuf[tx_len++] = 0xbe;
-	sendbuf[tx_len++] = 0xef;
+		tx_len += sizeof(struct udphdr);
+		/* Packet data */
 
-	/* Length of UDP payload and header */
-	udph->len = htons(tx_len - sizeof(struct ether_header) - sizeof(struct iphdr));
+
+		/* Length of UDP payload and header */
+		sendbuf[tx_len++] = 0x40;
+		sendbuf[tx_len++] = 0xad;
+		sendbuf[tx_len++] = 0xbe;
+		sendbuf[tx_len++] = 0xef;
+		sendbuf[tx_len++] = 0x12;
+		udph->len = htons(tx_len - sizeof(struct ether_header) - sizeof(struct iphdr));
+
+	}else{
+		//tcp
+	}
 	/* Length of IP payload and header */
 	iph->tot_len = htons(tx_len - sizeof(struct ether_header));
 	/* Calculate IP checksum on completed header */
-	iph->check = csum((unsigned short *)(sendbuf+sizeof(struct ether_header)), sizeof(struct iphdr)/2);
-
+	iph->check = in_cksum((unsigned short *)iph, sizeof(struct iphdr));
 	/* Index of the network device */
 	socket_address.sll_ifindex = if_idx.ifr_ifindex;
 	/* Address length*/
