@@ -50,6 +50,14 @@ unsigned short in_cksum(unsigned short *addr,int len)
         return(answer);
 }
 
+struct pseudoHeader{
+  uint32_t srcAddr;
+  uint32_t dstAddr;
+  uint8_t zero;
+  uint8_t protocol;
+  uint16_t len;
+};
+
 int main(int argc, char *argv[])
 {
 	int sockfd;
@@ -60,16 +68,43 @@ int main(int argc, char *argv[])
 	struct ether_header *eh = (struct ether_header *) sendbuf;
 	struct iphdr *iph = (struct iphdr *) (sendbuf + sizeof(struct ether_header));
 	struct sockaddr_ll socket_address;
+	struct pseudoHeader psHeader;
 	char ifName[IFNAMSIZ];
 	char ifTeste[IFNAMSIZ];
 	char *aux;
+	char *pseudo_packet;
+	char tempData[1460];
 	int udpMode;
+	strcpy(tempData,"cachorroasdasd");
 	//a4:1f:72:f5:90:c2 canto 
 	//a4:1f:72:f5:90:52	menos canto
 	udpMode = atoi(argv[2]);
 	strcpy(ifTeste, argv[0]);
-	printf("cachorro %d \n", udpMode);
 	strcpy(ifName, argv[1]);
+	FILE *fp;
+
+	char *buffer = NULL;
+	size_t size = 0;
+
+	fp = fopen("dont.txt", "r");
+	/* Get the buffer size */
+	fseek(fp, 0, SEEK_END); /* Go to end of file */
+	size = ftell(fp); /* How many bytes did we pass ? */
+
+	/* Set position of stream to the beginning */
+	rewind(fp);
+
+	/* Allocate the buffer (no need to initialize it with calloc) */
+	buffer = malloc((size + 1) * sizeof(*buffer)); /* size + 1 byte for the \0 */
+
+	/* Read the file into the buffer */
+	fread(buffer, size, 1, fp); /* Read 1 chunk of size bytes from fp into buffer */
+
+	/* NULL-terminate the buffer */
+	buffer[size] = '\0';
+
+	printf("%s\n", buffer);
+	strcpy(tempData, buffer);
 
 	/* Open RAW socket to send on */
 	if ((sockfd = socket(AF_PACKET, SOCK_RAW, IPPROTO_RAW)) == -1) {
@@ -122,12 +157,18 @@ int main(int argc, char *argv[])
 	//iph->frag_off |= htons(IP_MF);
 	iph->saddr = inet_addr(inet_ntoa(((struct sockaddr_in *)&if_ip.ifr_addr)->sin_addr));
 	// iph->saddr = inet_addr("192.168.0.112");
-	iph->daddr = inet_addr("127.0.0.1");
+	iph->daddr = iph->saddr;
 	iph->check = 0;
+	/* Length of IP payload and header */
+	iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + strlen(tempData));
+	/* Calculate IP checksum on completed header */
+	iph->check = in_cksum((unsigned short *)iph, sizeof(struct iphdr));
 	tx_len += sizeof(struct iphdr);
 
 	if(udpMode){
 		struct udphdr *udph = (struct udphdr *) (sendbuf + sizeof(struct iphdr) + sizeof(struct ether_header));
+		char *payload = (char *) (sendbuf + sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr));
+		strcpy(payload,tempData);
 		/* UDP Header */
 		udph->source = htons(3423);
 		udph->dest = htons(5342);
@@ -138,20 +179,30 @@ int main(int argc, char *argv[])
 
 
 		/* Length of UDP payload and header */
-		sendbuf[tx_len++] = 0x40;
-		sendbuf[tx_len++] = 0xad;
-		sendbuf[tx_len++] = 0xbe;
-		sendbuf[tx_len++] = 0xef;
-		sendbuf[tx_len++] = 0x12;
-		udph->len = htons(tx_len - sizeof(struct ether_header) - sizeof(struct iphdr));
+		tx_len+=strlen(payload);
+		udph->len = htons(sizeof(struct udphdr) + strlen(tempData));
+		//udph->len = htons(tx_len - sizeof(struct ether_header) - sizeof(struct iphdr));
+		psHeader.srcAddr = iph->saddr; //32 bit format of source address
+		psHeader.dstAddr = iph->daddr; //32 bit format of source address
+		psHeader.zero = 0; //8 bit always zero
+		psHeader.protocol = 17; //8 bit TCP protocol
+		psHeader.len = udph->len;
+		
+		pseudo_packet = (char *) malloc((int) (sizeof(struct pseudoHeader) + sizeof(struct udphdr) + strlen(payload)));
+		memset(pseudo_packet, 0, sizeof(struct pseudoHeader) + sizeof(struct udphdr) + strlen(payload));
 
+		 //Copy pseudo header
+		memcpy(pseudo_packet, (char *) &psHeader, sizeof(struct pseudoHeader));
+
+		//Copy tcp header + data to fake TCP header for checksum
+		memcpy(pseudo_packet + sizeof(struct pseudoHeader), udph, sizeof(struct udphdr) + strlen(payload));
+
+		//Set the TCP header's check field
+		udph->check = (in_cksum((unsigned short *) pseudo_packet, (int) (sizeof(struct pseudoHeader) + 
+		          sizeof(struct udphdr) +  strlen(payload))));
 	}else{
 		//tcp
 	}
-	/* Length of IP payload and header */
-	iph->tot_len = htons(tx_len - sizeof(struct ether_header));
-	/* Calculate IP checksum on completed header */
-	iph->check = in_cksum((unsigned short *)iph, sizeof(struct iphdr));
 	/* Index of the network device */
 	socket_address.sll_ifindex = if_idx.ifr_ifindex;
 	/* Address length*/
