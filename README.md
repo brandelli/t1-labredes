@@ -12,3 +12,8 @@ https://opensourceforu.com/2015/03/a-guide-to-using-raw-sockets/
 https://github.com/rbaron/raw_tcp_socket/blob/master/raw_tcp_socket.c
 
 http://www.pdbuchan.com/rawsock/rawsock.html
+
+iphdr.ip_off = htons ((ip_flags[0] << 15)
+                        + (ip_flags[1] << 14)
+                        + (ip_flags[2] << 13)
+                        +  ip_flags[3]);
