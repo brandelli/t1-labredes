@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
 	char *tempData = NULL;
 	int udpMode;
 	int fileOffset = 0;
+	int fragOffset = 0;
 	//a4:1f:72:f5:90:c2 canto 
 	//a4:1f:72:f5:90:52	menos canto
 	udpMode = atoi(argv[2]);
@@ -172,7 +173,7 @@ int main(int argc, char *argv[])
 		int moreFragments = (fileOffset + 1480) > size ? 0 : 1;
 		int fOffset = fileOffset ? fileOffset + 8 : fileOffset;
 		printf("%i\n", fileOffset); 
-		uint16_t frag = (0 << 15) + (0 << 14) + (moreFragments << 13) +  fileOffset/8;
+		uint16_t frag = (0 << 15) + (0 << 14) + (moreFragments << 13) +  fragOffset/8;
 		/* IP Header */
 		iph->ihl = 5;
 		iph->version = 4;
@@ -218,15 +219,16 @@ int main(int argc, char *argv[])
 				psHeader.zero = 0; //8 bit always zero
 				psHeader.protocol = 17; //8 bit TCP protocol
 				psHeader.len = udph->len;
-				strcpy(payload,tempData);
 				pseudo_packet = (char *) malloc((int) (sizeof(struct pseudoHeader) + sizeof(struct udphdr) + (int)strlen(buffer)));
 				memset(pseudo_packet, 0, sizeof(struct pseudoHeader) + sizeof(struct udphdr) + strlen(buffer));
 				memcpy(pseudo_packet, (char *) &psHeader, sizeof(struct pseudoHeader));
 				//Copy tcp header + data to fake TCP header for checksum
 				memcpy(pseudo_packet + sizeof(struct pseudoHeader), udph, sizeof(struct udphdr) + strlen(buffer));
+				memcpy(pseudo_packet + sizeof(struct pseudoHeader) + sizeof(struct udphdr), buffer,strlen(buffer));
 				//Set the TCP header's check field
 				udph->check = (in_cksum((unsigned short *) pseudo_packet, (int) (sizeof(struct pseudoHeader) + 
 				          sizeof(struct udphdr) +  (int)strlen(buffer))));
+				strcpy(payload,tempData);
 			}
 			printf("payload%i\n", (int)strlen(tempData));
 			tx_len += strlen(tempData);
@@ -249,6 +251,8 @@ int main(int argc, char *argv[])
 			fileOffset+=1480;
 		else
 			fileOffset+=1472;
+
+		fragOffset +=1480;
 		/* Send packet */
 		printf("vou enviar pacote\n\n");
 		if (sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0){
