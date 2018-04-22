@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
 	while(fileOffset < size){
 		char *tempData;	
 		if(fileOffset){
+			printf("resto fragmentos\n");
 			tempData = (char *)calloc(1480, sizeof(char));
 			int teste = 0;
 			while(teste<1480){
@@ -138,6 +139,7 @@ int main(int argc, char *argv[])
 				teste++;
 			}
 		}else{
+			printf("primeiro fragmento\n");
 			tempData = (char *)calloc(1472, sizeof(char));
 			int teste = 0;
 			while(teste<1472){
@@ -185,15 +187,15 @@ int main(int argc, char *argv[])
 		iph->check = 0;
 		/* Length of IP payload and header */
 		if(fileOffset)
-			iph->tot_len = htons(sizeof(struct iphdr) + (int) strlen(buffer));
+			iph->tot_len = htons(sizeof(struct iphdr) + (int) strlen(tempData));
 		else
-			iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + (int) strlen(buffer));
+			iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + (int) strlen(tempData));
 
 		printf("ether :%i\n", (int) sizeof(struct ether_header));
 		printf("iphdr :%i\n", (int) sizeof(struct iphdr));
 		printf("udp :%i\n", (int) sizeof(struct udphdr));
 		printf("data :%i\n", (int) strlen(tempData));
-		printf("teste %i\n", (int)(sizeof(struct iphdr) + sizeof(struct udphdr) + (int)strlen(tempData)));
+		printf("ip+udp+data: %i\n", (int)(sizeof(struct iphdr) + sizeof(struct udphdr) + (int)strlen(tempData)));
 		/* Calculate IP checksum on completed header */
 		iph->check = in_cksum((unsigned short *)iph, sizeof(struct iphdr));
 		tx_len += sizeof(struct iphdr);
@@ -216,7 +218,7 @@ int main(int argc, char *argv[])
 				psHeader.zero = 0; //8 bit always zero
 				psHeader.protocol = 17; //8 bit TCP protocol
 				psHeader.len = udph->len;
-				strcpy(payload,buffer);
+				strcpy(payload,tempData);
 				pseudo_packet = (char *) malloc((int) (sizeof(struct pseudoHeader) + sizeof(struct udphdr) + (int)strlen(buffer)));
 				memset(pseudo_packet, 0, sizeof(struct pseudoHeader) + sizeof(struct udphdr) + strlen(buffer));
 				memcpy(pseudo_packet, (char *) &psHeader, sizeof(struct pseudoHeader));
@@ -226,8 +228,9 @@ int main(int argc, char *argv[])
 				udph->check = (in_cksum((unsigned short *) pseudo_packet, (int) (sizeof(struct pseudoHeader) + 
 				          sizeof(struct udphdr) +  (int)strlen(buffer))));
 			}
-			printf("payload%i\n", (int)strlen(payload));
-			tx_len += strlen(payload);
+			printf("payload%i\n", (int)strlen(tempData));
+			tx_len += strlen(tempData);
+			printf("tx_len: %d \n", tx_len);
 		}else{
 			//tcp
 		}
@@ -247,6 +250,7 @@ int main(int argc, char *argv[])
 		else
 			fileOffset+=1472;
 		/* Send packet */
+		printf("vou enviar pacote\n\n");
 		if (sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0){
 		    printf("Send failed\n");
 		    return 0;
