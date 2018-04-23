@@ -13,7 +13,8 @@ https://github.com/rbaron/raw_tcp_socket/blob/master/raw_tcp_socket.c
 
 http://www.pdbuchan.com/rawsock/rawsock.html
 
-iphdr.ip_off = htons ((ip_flags[0] << 15)
-                        + (ip_flags[1] << 14)
-                        + (ip_flags[2] << 13)
-                        +  ip_flags[3]);
+https://www.cisco.com/c/en/us/support/docs/ip/generic-routing-encapsulation-gre/25885-pmtud-ipfrag.html
+
+http://www.tcpipguide.com/free/t_IPMessageFragmentationProcess-3.htm
+
+https://advancedinternettechnologies.wordpress.com/ipv4-header/
