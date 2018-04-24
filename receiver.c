@@ -85,6 +85,7 @@ int main(int argc,char *argv[])
 	int arrOffset[44];
 	int counter = 0;
 	int lastFragment = -1;
+	char fullData[65365];
 	// recepcao de pacotes
 	while (1) {
    		recv(sockd,(char *) &buff1, sizeof(buff1), 0x0);
@@ -101,7 +102,6 @@ int main(int argc,char *argv[])
    			eh->ether_shost[4] == SRC_MAC4 &&
    			eh->ether_shost[5] == SRC_MAC5)
    		{
-
 	   		printf("pacote novo\n");
 			// impress�o do coneudo - exemplo Endereco Destino e Endereco Origem
 			printf("ethernet frame\n");
@@ -128,32 +128,43 @@ int main(int argc,char *argv[])
 
    			printf("array Offset: %d\n", arrOffset[counter]);
    			printf("last Fragment: %d\n", lastFragment);
-   			counter++;
+   			
    			printf("ip Offset: %d \n", ipOffset);
    			printf("ip protocol: %d \n", iph->protocol);
    			printf("total length: %d\n", ntohs(iph->tot_len));
    			//verificar essa linha para cabeçalho
-   			int udpHeaderSize = ipOffset ? 0 : 8;
+   			//int udpHeaderSize = ipOffset ? 0 : 8;
+   			int udpHeaderSize = 0;
    			int etherHeaderSize = 14;
    			int ipHeaderSize = 20;
    			int dataLength = ntohs(iph->tot_len) - udpHeaderSize - ipHeaderSize;
    			printf("dataLength: %d \n", dataLength); 
    			char *data = (char *) (buff1 + ipHeaderSize + etherHeaderSize + udpHeaderSize);
    			printf("data\n");
-
+   			for(int i=0;i<dataLength;i++){
+   				printf("laco for position: %d\n", (counter*1480)+i);
+   				fullData[(counter*1480)+i] = data[i];
+   				printf("%c", fullData[(counter*1480)+i]);
+   			}
 
 
 
 
    			printf("more fragments: %d\n", moreFragments);
    			printf("contador de pacotes: %d\n", counter);
+   			counter++;
    			if(!moreFragments && (counter == lastFragment)){
+   				printf("comeco a colocar dados no arquivo\n");
+   				int sizeFullData = (int)strlen(fullData+8);
+   				printf("size of fullData %d \n", sizeFullData);
 	   			fp = fopen("recebido.txt", "w");
-	   			for (int i = 0; i < dataLength; ++i)
+	   			for (int i = 0; i < sizeFullData; i++)
 	   			{
-	   				fputc(data[i], fp);
-	   				printf("%c", data[i]);
+	   				printf("posição do arquivo: %d -> ", i);
+	   				fputc(fullData[i+8], fp);
+	   				printf("%c \n", fullData[i+8]);
 	   			}
+	   			printf("\n");
 	   			fclose(fp);
 	   			printf("fim data\n");
 	   			arrOffset[44];
