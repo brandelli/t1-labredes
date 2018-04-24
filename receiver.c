@@ -63,6 +63,9 @@ int main(int argc,char *argv[])
 	struct iphdr *iph = (struct iphdr *) (buff1 + sizeof(struct ether_header));
 	struct udphdr *udph = (struct udphdr *) (buff1 + sizeof(struct iphdr) + sizeof(struct ether_header));
 	FILE *fp;
+	short ipFlags = 0;
+	short ipOffset;
+	char moreFragments;
     /* Criacao do socket. Todos os pacotes devem ser construidos a partir do protocolo Ethernet. */
     /* De um "man" para ver os parametros.*/
     /* htons: converte um short (2-byte) integer para standard network byte order. */
@@ -79,6 +82,9 @@ int main(int argc,char *argv[])
 	ifr.ifr_flags |= IFF_PROMISC;
 	ioctl(sockd, SIOCSIFFLAGS, &ifr);
 
+	int arrOffset[44];
+	int counter = 0;
+	int lastFragment = -1;
 	// recepcao de pacotes
 	while (1) {
    		recv(sockd,(char *) &buff1, sizeof(buff1), 0x0);
@@ -102,22 +108,60 @@ int main(int argc,char *argv[])
 			printf("MAC Destino: %x:%x:%x:%x:%x:%x \n", eh->ether_dhost[0],eh->ether_dhost[1],eh->ether_dhost[2],eh->ether_dhost[3],eh->ether_dhost[4],eh->ether_dhost[5]);
 			printf("MAC Origem:  %x:%x:%x:%x:%x:%x \n", eh->ether_shost[0],eh->ether_shost[1],eh->ether_shost[2],eh->ether_shost[3],eh->ether_shost[4],eh->ether_shost[5]);
 			printf("ether type: %x\n",eh->ether_type);
-   			printf("ip frame\n\n");
+   			printf("ip frame\n");
    			printf("id: %d\n", iph->id);
-   			printf("ip protocol: %d \n", iph->protocol);
-   			printf("total length: %d\n\n", ntohs(iph->tot_len));
-   			int dataLength = ntohs(iph->tot_len) - 8 - 20;
-   			printf("dataLength: %d \n", dataLength); 
-   			char *data = (char *) (buff1 + sizeof(struct iphdr) + sizeof(struct ether_header) + sizeof(struct udphdr));
-   			printf("data\n");
-   			fp = fopen("recebido.txt", "w");
-   			for (int i = 0; i < dataLength; ++i)
-   			{
-   				fputc(data[i], fp);
-   				printf("%c", data[i]);
+   			ipFlags = ntohs(iph->frag_off);
+   			ipOffset = ipFlags << 3;
+   			ipOffset = (ipOffset >> 3) * 8;
+   			moreFragments = (ipFlags >> 13) & 1;
+
+   			if(!moreFragments && ntohs(iph->tot_len) < 1500){
+   				printf("ultimo pacote\n");
+   				arrOffset[counter] = (ipOffset / 1480) + 1;
+   			}else{
+   				printf("pacotes intermediarios\n");
+   				arrOffset[counter] = ipOffset / 1480;
    			}
-   			fclose(fp);
-   			printf("fim data\n");
+
+   			if(!moreFragments)
+   				lastFragment = arrOffset[counter]; 
+
+   			printf("array Offset: %d\n", arrOffset[counter]);
+   			printf("last Fragment: %d\n", lastFragment);
+   			counter++;
+   			printf("ip Offset: %d \n", ipOffset);
+   			printf("ip protocol: %d \n", iph->protocol);
+   			printf("total length: %d\n", ntohs(iph->tot_len));
+   			//verificar essa linha para cabeçalho
+   			int udpHeaderSize = ipOffset ? 0 : 8;
+   			int etherHeaderSize = 14;
+   			int ipHeaderSize = 20;
+   			int dataLength = ntohs(iph->tot_len) - udpHeaderSize - ipHeaderSize;
+   			printf("dataLength: %d \n", dataLength); 
+   			char *data = (char *) (buff1 + ipHeaderSize + etherHeaderSize + udpHeaderSize);
+   			printf("data\n");
+
+
+
+
+
+   			printf("more fragments: %d\n", moreFragments);
+   			printf("contador de pacotes: %d\n", counter);
+   			if(!moreFragments && (counter == lastFragment)){
+	   			fp = fopen("recebido.txt", "w");
+	   			for (int i = 0; i < dataLength; ++i)
+	   			{
+	   				fputc(data[i], fp);
+	   				printf("%c", data[i]);
+	   			}
+	   			fclose(fp);
+	   			printf("fim data\n");
+	   			arrOffset[44];
+	   			counter = 0;
+	   			lastFragment = -1;
+   			}
+
+   			printf("\n\n");
    		}
 	}
 }
