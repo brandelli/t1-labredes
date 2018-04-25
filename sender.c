@@ -88,8 +88,8 @@ int main(int argc, char *argv[])
 	char *buffer = NULL;
 	size_t size = 0;
 
-	//fp = fopen("dont.txt", "r");
-	fp = fopen("fragment.txt", "r");
+	fp = fopen("dont.txt", "r");
+	//fp = fopen("fragment.txt", "r");
 	/* Get the buffer size */
 	fseek(fp, 0, SEEK_END); /* Go to end of file */
 	size = ftell(fp); /* How many bytes did we pass ? */

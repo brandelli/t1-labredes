@@ -117,7 +117,10 @@ int main(int argc,char *argv[])
 
    			if(!moreFragments && ntohs(iph->tot_len) < 1500){
    				printf("ultimo pacote\n");
-   				arrOffset[counter] = (ipOffset / 1480) + 1;
+   				if(counter == 0)
+   					arrOffset[counter] = 0;
+   				else
+   					arrOffset[counter] = (ipOffset / 1480);
    			}else{
    				printf("pacotes intermediarios\n");
    				arrOffset[counter] = ipOffset / 1480;
@@ -141,10 +144,23 @@ int main(int argc,char *argv[])
    			printf("dataLength: %d \n", dataLength); 
    			char *data = (char *) (buff1 + ipHeaderSize + etherHeaderSize + udpHeaderSize);
    			printf("data\n");
-   			for(int i=0;i<dataLength;i++){
-   				printf("laco for position: %d\n", (counter*1480)+i);
-   				fullData[(counter*1480)+i] = data[i];
-   				printf("%c", fullData[(counter*1480)+i]);
+
+   			int nFragment = arrOffset[counter];
+   			int startData = arrOffset[counter] * 1480;
+   			int endData = 0;
+   			if(!moreFragments)
+   				endData = startData + dataLength;
+   			else
+   				endData = startData + 1480;
+
+   			int j = 0;
+   			printf("startData: %d\n", startData);
+   			printf("endData: %d\n", endData);
+   			for(int i=startData;i<endData;i++){
+   				//printf("laco for position: %d\n", i);
+   				fullData[i] = data[j];
+   				//printf("%c", fullData[(counter*1480)+i]);
+   				j++;
    			}
 
 
@@ -153,16 +169,17 @@ int main(int argc,char *argv[])
    			printf("more fragments: %d\n", moreFragments);
    			printf("contador de pacotes: %d\n", counter);
    			counter++;
-   			if(!moreFragments && (counter == lastFragment)){
+   			if(!moreFragments && (counter == lastFragment+1)){
    				printf("comeco a colocar dados no arquivo\n");
    				int sizeFullData = (int)strlen(fullData+8);
    				printf("size of fullData %d \n", sizeFullData);
 	   			fp = fopen("recebido.txt", "w");
+
 	   			for (int i = 0; i < sizeFullData; i++)
 	   			{
-	   				printf("posição do arquivo: %d -> ", i);
+	   				//printf("posição do arquivo: %d -> ", i);
 	   				fputc(fullData[i+8], fp);
-	   				printf("%c \n", fullData[i+8]);
+	   				//printf("%c \n", fullData[i+8]);
 	   			}
 	   			printf("\n");
 	   			fclose(fp);
