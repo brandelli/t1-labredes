@@ -50,6 +50,7 @@ unsigned short in_cksum(unsigned short *addr,int len)
         return(answer);
 }
 
+//struct utilizada para o checksum do udp
 struct pseudoHeader{
   uint32_t srcAddr;
   uint32_t dstAddr;
@@ -71,15 +72,13 @@ int main(int argc, char *argv[])
 	struct pseudoHeader psHeader;
 	char ifName[IFNAMSIZ];
 	char ifTeste[IFNAMSIZ];
-	char *aux;
 	char *pseudo_packet;
-	#pragma pack(1)
 	char *tempData = NULL;
 	int udpMode;
 	int fileOffset = 0;
 	int fragOffset = 0;
-	//a4:1f:72:f5:90:c2 canto 
-	//a4:1f:72:f5:90:52	menos canto
+
+	//recebe o segundo argumento
 	udpMode = atoi(argv[2]);
 	strcpy(ifTeste, argv[0]);
 	strcpy(ifName, argv[1]);
@@ -88,21 +87,24 @@ int main(int argc, char *argv[])
 	char *buffer = NULL;
 	size_t size = 0;
 
-	//fp = fopen("dont.txt", "r");
-	fp = fopen("fragment.txt", "r");
-	/* Get the buffer size */
-	fseek(fp, 0, SEEK_END); /* Go to end of file */
-	size = ftell(fp); /* How many bytes did we pass ? */
+	fp = fopen("dont.txt", "r");
+	//fp = fopen("fragment.txt", "r");
+    
+    //vai ao final do arquivo
+	fseek(fp, 0, SEEK_END);
+	//verifica o tamanho do arquivo
+	size = ftell(fp);
 
-	/* Set position of stream to the beginning */
+	//volta o ponteiro do arquivo ao inicio
 	rewind(fp);
 
-	buffer = malloc((size + 1) * sizeof(*buffer)); /* size + 1 byte for the \0 */
+	//aloca o tamanho do arquivo + 1, para terminador de string
+	buffer = malloc((size + 1) * sizeof(*buffer));
 
-	/* Read the file into the buffer */
-	fread(buffer, size, 1, fp); /* Read 1 chunk of size bytes from fp into buffer */
+	//le o arquivo
+	fread(buffer, size, 1, fp);
 
-	/* NULL-terminate the buffer */
+	//insere o final de input
 	buffer[size] = '\0';
 	printf("tamanho arquivo: %i bytes\n", (int)size);
 
@@ -131,32 +133,32 @@ int main(int argc, char *argv[])
 
 	while(fileOffset < size){
 		char *tempData;	
+		int counter = 0;
+		//faz o preenchimento da estrutura temporaria para o payload
 		if(fileOffset){
 			printf("resto fragmentos\n");
 			tempData = (char *)calloc(1481, sizeof(char));
-			int teste = 0;
-			while(teste<1480 && (int) strlen(tempData) < 1480){
-				tempData[teste] = (char)buffer[fileOffset + teste];
-				teste++;
+			while(counter<1480 && (int) strlen(tempData) < 1480){
+				tempData[counter] = (char)buffer[fileOffset + counter];
+				counter++;
 			}
 			tempData[1480] = '\0';
-			printf("str tempdata %d \n", (int) strlen(tempData));
 		}else{
 			printf("primeiro fragmento\n");
 			tempData = (char *)calloc(1472, sizeof(char));
-			int teste = 0;
-			while(teste<1472){
-				tempData[teste] = buffer[teste];
-				teste++;
+			int counter = 0;
+			while(counter<1472){
+				tempData[counter] = buffer[counter];
+				counter++;
 			}
 		}
 		printf("tamanho tempData %d \n", (int) strlen(tempData));
 		printf("fileOffset %d \n", fileOffset);
-		//printf("arquivo  %s\n", tempData);
+
+		//inicia a montagem dos cabeçalhos
 		tx_len = 0;
-		/* Construct the Ethernet header */
 		memset(sendbuf, 0, BUF_SIZ);
-		/* Ethernet header */
+		//ethernet
 		eh->ether_shost[0] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[0];
 		eh->ether_shost[1] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[1];
 		eh->ether_shost[2] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[2];
@@ -169,26 +171,30 @@ int main(int argc, char *argv[])
 		eh->ether_dhost[3] = MY_DEST_MAC0;
 		eh->ether_dhost[4] = MY_DEST_MAC0;
 		eh->ether_dhost[5] = MY_DEST_MAC0;
-		/* Ethertype field */
 		eh->ether_type = htons(ETH_P_IP);
+
+		//quantos dados foram inseridos no pacote
 		tx_len += sizeof(struct ether_header);
+		//verificacoes de mais fragmentos e offset do arquivo
 		int moreFragments = (fileOffset + 1480) > size ? 0 : 1;
 		int fOffset = fileOffset ? fileOffset + 8 : fileOffset;
 		printf("%i\n", fileOffset); 
 		uint16_t frag = (0 << 15) + (0 << 14) + (moreFragments << 13) +  fragOffset/8;
-		/* IP Header */
+		
+		//ip
 		iph->ihl = 5;
 		iph->version = 4;
-		iph->tos = 16; // Low delay
+		iph->tos = 16;
 		iph->id = htons(171);
-		iph->ttl = 255; // hops
+		iph->ttl = 255;
 		iph->protocol = udpMode ? 17 : 6; // UDP
 		iph->frag_off = htons (frag);
 		iph->saddr = inet_addr(inet_ntoa(((struct sockaddr_in *)&if_ip.ifr_addr)->sin_addr));
 		// iph->saddr = inet_addr("192.168.0.112");
 		iph->daddr = iph->saddr;
 		iph->check = 0;
-		/* Length of IP payload and header */
+		
+		//tamanho do pacote
 		if(fileOffset)
 			iph->tot_len = htons(sizeof(struct iphdr) + (int) strlen(tempData));
 		else
@@ -199,35 +205,38 @@ int main(int argc, char *argv[])
 		printf("udp :%i\n", (int) sizeof(struct udphdr));
 		printf("data :%i\n", (int) strlen(tempData));
 		printf("ip+udp+data: %i\n", (int)(sizeof(struct iphdr) + sizeof(struct udphdr) + (int)strlen(tempData)));
-		/* Calculate IP checksum on completed header */
+		
+		//calculo do checksum do ip
 		iph->check = in_cksum((unsigned short *)iph, sizeof(struct iphdr));
 		tx_len += sizeof(struct iphdr);
 
 		if(udpMode){
+			//caso seja udp
 			char *payload;
+			//não é primeiro fragmento
 			if(fileOffset){
 				payload = (char *) (sendbuf + sizeof(struct ether_header) + sizeof(struct iphdr));
 				strcpy(payload,tempData);
 			}else{
+				//primeiro fragento
 				struct udphdr *udph = (struct udphdr *) (sendbuf + sizeof(struct iphdr) + sizeof(struct ether_header));
 				payload = (char *) (sendbuf + sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr));
 				udph->source = htons(3423);
 				udph->dest = htons(5342);
-				udph->check = 0; // skip
+				udph->check = 0;
 				tx_len += sizeof(struct udphdr);
 				udph->len = htons(sizeof(struct udphdr) + (int) strlen(buffer));
-				psHeader.srcAddr = iph->saddr; //32 bit format of source address
-				psHeader.dstAddr = iph->daddr; //32 bit format of source address
-				psHeader.zero = 0; //8 bit always zero
-				psHeader.protocol = 17; //8 bit TCP protocol
+				//montagem do pseudo cabeçalho upd, para checksum
+				psHeader.srcAddr = iph->saddr;
+				psHeader.dstAddr = iph->daddr;
+				psHeader.zero = 0;
+				psHeader.protocol = 17;
 				psHeader.len = udph->len;
 				pseudo_packet = (char *) malloc((int) (sizeof(struct pseudoHeader) + sizeof(struct udphdr) + (int)strlen(buffer)));
 				memset(pseudo_packet, 0, sizeof(struct pseudoHeader) + sizeof(struct udphdr) + strlen(buffer));
 				memcpy(pseudo_packet, (char *) &psHeader, sizeof(struct pseudoHeader));
-				//Copy tcp header + data to fake TCP header for checksum
 				memcpy(pseudo_packet + sizeof(struct pseudoHeader), udph, sizeof(struct udphdr) + strlen(buffer));
 				memcpy(pseudo_packet + sizeof(struct pseudoHeader) + sizeof(struct udphdr), buffer,strlen(buffer));
-				//Set the TCP header's check field
 				udph->check = (in_cksum((unsigned short *) pseudo_packet, (int) (sizeof(struct pseudoHeader) + 
 				          sizeof(struct udphdr) +  (int)strlen(buffer))));
 				strcpy(payload,tempData);
@@ -238,11 +247,8 @@ int main(int argc, char *argv[])
 		}else{
 			//tcp
 		}
-		/* Index of the network device */
 		socket_address.sll_ifindex = if_idx.ifr_ifindex;
-		/* Address length*/
 		socket_address.sll_halen = ETH_ALEN;
-		/* Destination MAC */
 		socket_address.sll_addr[0] = MY_DEST_MAC0;
 		socket_address.sll_addr[1] = MY_DEST_MAC1;
 		socket_address.sll_addr[2] = MY_DEST_MAC2;
@@ -255,7 +261,6 @@ int main(int argc, char *argv[])
 			fileOffset+=1472;
 
 		fragOffset +=1480;
-		/* Send packet */
 		printf("vou enviar pacote\n\n");
 		if (sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0){
 		    printf("Send failed\n");

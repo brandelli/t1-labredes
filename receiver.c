@@ -1,7 +1,3 @@
-/*-------------------------------------------------------------*/
-/* Exemplo Socket Raw - Captura pacotes recebidos na interface */
-/*-------------------------------------------------------------*/
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -9,15 +5,10 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include <unistd.h>
-
-/* Diretorios: net, netinet, linux contem os includes que descrevem */
-/* as estruturas de dados do header dos protocolos   	  	        */
-
 #include <net/if.h>  //estrutura ifr
 #include <netinet/ether.h> //header ethernet
 #include <netinet/in.h> //definicao de protocolos
 #include <arpa/inet.h> //funcoes para manipulacao de enderecos IP
-
 #include <netinet/in_systm.h> //tipos de dados
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
@@ -47,9 +38,6 @@
 #define SRC_MAC3	0x43
 #define SRC_MAC4	0x8d
 #define SRC_MAC5	0x2a
-
-// Atencao!! Confira no /usr/include do seu sisop o nome correto
-// das estruturas de dados dos protocolos.
 	
 unsigned char buff1[BUFFSIZE]; // buffer de recepcao
 
@@ -66,15 +54,11 @@ int main(int argc,char *argv[])
 	short ipFlags = 0;
 	short ipOffset;
 	char moreFragments;
-    /* Criacao do socket. Todos os pacotes devem ser construidos a partir do protocolo Ethernet. */
-    /* De um "man" para ver os parametros.*/
-    /* htons: converte um short (2-byte) integer para standard network byte order. */
     if((sockd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0) {
        printf("Erro na criacao do socket.\n");
        exit(1);
     }
 
-	// O procedimento abaixo eh utilizado para "setar" a interface em modo promiscuo
 	strcpy(ifr.ifr_name, "wlp2s0");
 	if(ioctl(sockd, SIOCGIFINDEX, &ifr) < 0)
 		printf("erro no ioctl!");
@@ -103,7 +87,6 @@ int main(int argc,char *argv[])
    			eh->ether_shost[5] == SRC_MAC5)
    		{
 	   		printf("pacote novo\n");
-			// impress�o do coneudo - exemplo Endereco Destino e Endereco Origem
 			printf("ethernet frame\n");
 			printf("MAC Destino: %x:%x:%x:%x:%x:%x \n", eh->ether_dhost[0],eh->ether_dhost[1],eh->ether_dhost[2],eh->ether_dhost[3],eh->ether_dhost[4],eh->ether_dhost[5]);
 			printf("MAC Origem:  %x:%x:%x:%x:%x:%x \n", eh->ether_shost[0],eh->ether_shost[1],eh->ether_shost[2],eh->ether_shost[3],eh->ether_shost[4],eh->ether_shost[5]);
