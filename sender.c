@@ -88,8 +88,8 @@ int main(int argc, char *argv[])
 	char *buffer = NULL;
 	size_t size = 0;
 
-	fp = fopen("dont.txt", "r");
-	//fp = fopen("fragment.txt", "r");
+	//fp = fopen("dont.txt", "r");
+	fp = fopen("fragment.txt", "r");
 	/* Get the buffer size */
 	fseek(fp, 0, SEEK_END); /* Go to end of file */
 	size = ftell(fp); /* How many bytes did we pass ? */
@@ -133,12 +133,14 @@ int main(int argc, char *argv[])
 		char *tempData;	
 		if(fileOffset){
 			printf("resto fragmentos\n");
-			tempData = (char *)calloc(1480, sizeof(char));
+			tempData = (char *)calloc(1481, sizeof(char));
 			int teste = 0;
-			while(teste<1480){
-				tempData[teste] = buffer[fileOffset + teste];
+			while(teste<1480 && (int) strlen(tempData) < 1480){
+				tempData[teste] = (char)buffer[fileOffset + teste];
 				teste++;
 			}
+			tempData[1480] = '\0';
+			printf("str tempdata %d \n", (int) strlen(tempData));
 		}else{
 			printf("primeiro fragmento\n");
 			tempData = (char *)calloc(1472, sizeof(char));
